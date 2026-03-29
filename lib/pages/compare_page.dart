@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:testpro26/main.dart';
 import 'package:testpro26/models/product_model.dart';
 import 'package:testpro26/providers/product_provider.dart';
+import 'package:go_router/go_router.dart';
 
 class ComparePage extends StatelessWidget {
   const ComparePage({super.key});
@@ -15,15 +16,47 @@ class ComparePage extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Product Comparison'),
+        title: const Text('Compare Products'),
+        actions: [
+          if (selectedProducts.isNotEmpty)
+            TextButton(
+              onPressed: () => provider.clearComparison(),
+              child: const Text(
+                'Clear All',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+        ],
       ),
       body: SafeArea(
         child: Column(
           children: [
+            if (selectedProducts.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                color: Colors.white,
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, size: 16, color: AppColors.textSecondary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Comparing ${selectedProducts.length} products (Max 4)',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             Expanded(
               child: selectedProducts.isEmpty
-                  ? _buildEmptyState()
-                  : _buildComparisonTable(selectedProducts, provider),
+                  ? _buildEmptyState(context)
+                  : _buildComparisonView(context, selectedProducts, provider),
             ),
           ],
         ),
@@ -31,106 +64,322 @@ class ComparePage extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
     return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.05),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.compare_arrows_rounded, size: 80, color: AppColors.primary.withOpacity(0.2)),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'No products selected for comparison',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Add products from the scanner or product details to compare them side-by-side.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: 200,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: () => context.go('/dashboard'),
+                icon: const Icon(Icons.add),
+                label: const Text('Add Products'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildComparisonView(BuildContext context, List<Product> products, ProductProvider provider) {
+    return SingleChildScrollView(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.add_chart_rounded, size: 80, color: Colors.grey[300]),
-          const SizedBox(height: 16),
-          const Text('No products to compare', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-          const Text('Scan barcodes to add products (up to 4)', style: TextStyle(color: AppColors.textSecondary)),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildTableHeader(products, provider),
+                const SizedBox(height: 8),
+                _buildTableBody(products),
+              ],
+            ),
+          ),
+          _buildAiRecommendationSection(context, products, provider),
+          const SizedBox(height: 40),
         ],
       ),
     );
   }
 
-  Widget _buildComparisonTable(List<Product> selectedProducts, ProductProvider provider) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.vertical,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          columnSpacing: 20,
-          headingRowHeight: 120,
-          dataRowMinHeight: 60,
-          dataRowMaxHeight: 80,
-          columns: [
-            const DataColumn(label: Text('Features', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textSecondary))),
-            ...selectedProducts.map((p) => DataColumn(
-              label: Container(
-                width: 120,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Stack(
-                      alignment: Alignment.topRight,
-                      children: [
-                        Container(
-                          height: 60,
-                          width: 60,
-                          decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
-                          child: const Icon(Icons.image_outlined, color: AppColors.textHint),
-                        ),
-                        GestureDetector(
-                          onTap: () => provider.removeFromComparison(p.id),
-                          child: Container(
-                            decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                            child: const Icon(Icons.close, color: Colors.white, size: 16),
-                          ),
-                        )
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      p.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+  Widget _buildAiRecommendationSection(BuildContext context, List<Product> products, ProductProvider provider) {
+    if (products.length < 2) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'AI Recommendation',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
                 ),
               ),
-            )),
+              if (!provider.isLoading)
+                TextButton.icon(
+                  onPressed: () async {
+                    final response = await provider.getAiProductComparison();
+                    if (response != null && context.mounted) {
+                      _showRecommendationDialog(context, response);
+                    }
+                  },
+                  icon: const Icon(Icons.auto_awesome, size: 16),
+                  label: const Text('Get AI Insight'),
+                ),
+            ],
+          ),
+        ),
+        if (provider.isLoading)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(32.0),
+              child: Column(
+                children: [
+                  CircularProgressIndicator(strokeWidth: 2),
+                  SizedBox(height: 12),
+                  Text('AI is analyzing products...'),
+                ],
+              ),
+            ),
+          )
+        else if (provider.error != null)
+          _buildErrorWidget(provider.error!)
+        else
+          _buildStaticComparisonCard(products),
+      ],
+    );
+  }
+
+  void _showRecommendationDialog(BuildContext context, String recommendation) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.auto_awesome, color: AppColors.primary),
+            SizedBox(width: 8),
+            Text('AI Comparison Result'),
           ],
-          rows: [
-            _buildDataRow('Brand', selectedProducts, (p) => p.brand, isBold: true),
-            _buildDataRow('Category', selectedProducts, (p) => p.category),
-            _buildDataRow('Voltage', selectedProducts, (p) => p.voltage),
-            _buildDataRow('Material', selectedProducts, (p) => p.material),
-            _buildDataRow('Type/Features', selectedProducts, (p) => p.type),
-            _buildDataRow('Warranty', selectedProducts, (p) => p.warranty, color: Colors.green[50]),
-          ],
+        ),
+        content: SingleChildScrollView(
+          child: Text(recommendation),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorWidget(String error) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.red[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.red),
+          const SizedBox(width: 12),
+          Expanded(child: Text(error, style: const TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStaticComparisonCard(List<Product> products) {
+    // Standard mock for when AI hasn't been called yet or as a fallback
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: AppColors.primary.withOpacity(0.1)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              const Text(
+                'Ready for AI Insight',
+                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Click "Get AI Insight" above to generate a smart comparison between these products using OpenRouter.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: AppColors.textHint),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  DataRow _buildDataRow(String title, List<Product> products, String Function(Product p) getValue, {bool isBold = false, Color? color}) {
-    return DataRow(
-      color: color != null ? WidgetStateProperty.all(color) : null,
-      cells: [
-        DataCell(Text(title, style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textSecondary))),
-        ...products.map((p) {
-          final val = getValue(p);
-          return DataCell(
-            Container(
-              width: 120,
-              alignment: Alignment.center,
-              child: Text(
-                val,
-                style: TextStyle(
-                  fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-                  color: isBold ? AppColors.primary : AppColors.textPrimary,
+
+  Widget _buildTableHeader(List<Product> products, ProductProvider provider) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: AppColors.divider)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCell('Attributes', isHeader: true, width: 120),
+          ...products.map((p) => _buildProductHeaderCell(p, provider)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductHeaderCell(Product p, ProductProvider provider) {
+    return Container(
+      width: 160,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        children: [
+          Stack(
+            children: [
+              Container(
+                height: 80,
+                width: 80,
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                textAlign: TextAlign.center,
+                child: const Icon(Icons.inventory_2_outlined, color: AppColors.textHint, size: 30),
               ),
-            ),
-          );
-        }),
-      ],
+              Positioned(
+                top: 0,
+                right: 0,
+                child: GestureDetector(
+                  onTap: () => provider.removeFromComparison(p.barcode),
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(color: AppColors.error, shape: BoxShape.circle),
+                    child: const Icon(Icons.close, color: Colors.white, size: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            p.name,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            p.brand,
+            style: const TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTableBody(List<Product> products) {
+    return Container(
+      color: Colors.white,
+      child: Column(
+        children: [
+          _buildComparisonRow('Category', products, (p) => p.category),
+          _buildComparisonRow('Barcode', products, (p) => p.barcode),
+          _buildComparisonRow('Price', products, (p) => '\$${p.price.toStringAsFixed(2)}'),
+          _buildComparisonRow('Rating', products, (p) => '${p.rating} / 5.0'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildComparisonRow(String title, List<Product> products, String Function(Product) getValue) {
+    final values = products.map((p) => getValue(p)).toList();
+    // Check if there are differences to highlight (only if > 1 product)
+    final bool hasDifference = products.length > 1 && values.toSet().length > 1;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: hasDifference ? AppColors.primary.withOpacity(0.03) : Colors.white,
+        border: const Border(bottom: BorderSide(color: AppColors.divider)),
+      ),
+      child: Row(
+        children: [
+          _buildCell(title, isHeader: true, width: 120),
+          ...products.map((p) => _buildCell(
+                getValue(p),
+                width: 160,
+                isHighlighted: hasDifference,
+              )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCell(String text, {bool isHeader = false, bool isHighlighted = false, double width = 160}) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: isHeader ? FontWeight.bold : (isHighlighted ? FontWeight.w600 : FontWeight.normal),
+          color: isHeader ? AppColors.textSecondary : (isHighlighted ? AppColors.primary : AppColors.textPrimary),
+        ),
+      ),
     );
   }
 }

@@ -1,130 +1,219 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:testpro26/main.dart';
-import 'package:testpro26/models/user_model.dart';
 
 class LoginPage extends StatefulWidget {
-  final Function(User) onLoginSuccess;
-
-  const LoginPage({super.key, required this.onLoginSuccess});
+  const LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
-  // Controllers removed to clean up unused warnings as role selection is used for demo
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  
+  bool _obscurePassword = true;
+  bool _isLoading = false;
 
-
-  void _login(UserRole role) {
-    // Simulated login based on selected role for demo purposes
-    String name = '';
-    String email = '';
-    String phone = '';
-    String? shopName;
-    String? shopId;
-
-    switch (role) {
-      case UserRole.administrator:
-        name = 'Tech Support';
-        email = 'support@techplumb.com';
-        phone = '+1 555-010-999';
-        break;
-      case UserRole.admin:
-        name = 'Nihal Owner';
-        email = 'owner@techplumb.com';
-        phone = '+91 9876543210';
-        shopName = 'TechPlumb Solutions HQ';
-        shopId = 'SHOP_001';
-        break;
-      case UserRole.staff:
-        name = 'Rahul Sharma';
-        email = 'rahul@techplumb.com';
-        phone = '+91 8887776660';
-        shopName = 'TechPlumb Solutions HQ';
-        shopId = 'SHOP_001';
-        break;
-      case UserRole.customer:
-        name = 'John Doe';
-        email = 'john.doe@example.com';
-        phone = '+1 202-555-0143';
-        break;
+  void _login() async {
+    if (!_formKey.currentState!.validate()) {
+       // Validate that email and password are not empty
+       return;
     }
+    
+    setState(() => _isLoading = true);
+    
+    // Simulate backend login request
+    await Future.delayed(const Duration(seconds: 2));
+    
+    if (mounted) {
+      setState(() => _isLoading = false);
+      
+      // Simple error text for demonstration, but if valid we proceed
+      if (_emailController.text == 'error@test.com') {
+         ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(
+             content: Text('Invalid login details'),
+             backgroundColor: AppColors.error,
+           ),
+         );
+         return;
+      }
+      
+      // Navigate to Dashboard
+      context.go('/dashboard');
+    }
+  }
 
-    widget.onLoginSuccess(User(
-      name: name,
-      email: email,
-      phone: phone,
-      shopName: shopName,
-      shopId: shopId,
-      role: role,
-    ));
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.storefront, size: 80, color: AppColors.primary),
-              const SizedBox(height: 16),
-              const Text(
-                'TechPlumb Solutions',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Enterprise Resource Planning',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
-              ),
-              const SizedBox(height: 48),
-              
-              const Text(
-                'Select Role for Demo Login',
-                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-              ),
-              const SizedBox(height: 16),
-              
-              _buildRoleButton('Administrator (Dev)', UserRole.administrator, Colors.deepPurple),
-              _buildRoleButton('Admin (Shop Owner)', UserRole.admin, AppColors.primary),
-              _buildRoleButton('Staff (Employee)', UserRole.staff, Colors.teal),
-              _buildRoleButton('Customer (User)', UserRole.customer, Colors.orange),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Top Section
+                  Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.storefront,
+                          size: 64,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'TechPlumb Solutions',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Sign in to continue',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 48),
 
-              const SizedBox(height: 32),
-              const Divider(),
-              const SizedBox(height: 16),
-              Text(
-                '© 2026 TechPlumb Solutions',
-                style: TextStyle(color: AppColors.textHint, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+                  // Middle Section
+                  TextFormField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      hintText: 'Enter your email',
+                      prefixIcon: Icon(Icons.email_outlined),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Email cannot be empty';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 20),
 
-  Widget _buildRoleButton(String label, UserRole role, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: SizedBox(
-        width: double.infinity,
-        height: 54,
-        child: ElevatedButton(
-          onPressed: () => _login(role),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: color,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      hintText: 'Enter your password',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Password cannot be empty';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Bottom Section
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {},
+                      child: const Text(
+                        'Forgot Password?',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  SizedBox(
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _login,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              'Login',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        "Don't have an account? ",
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                      GestureDetector(
+                        onTap: () {},
+                        child: const Text(
+                          'Sign Up',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
-          child: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
         ),
       ),
     );

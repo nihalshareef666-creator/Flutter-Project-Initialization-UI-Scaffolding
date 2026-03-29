@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:testpro26/main.dart';
 import 'package:go_router/go_router.dart';
+import 'package:testpro26/providers/product_provider.dart';
+import 'package:testpro26/models/product_model.dart';
 
 class ProductListPage extends StatefulWidget {
   final String category;
@@ -11,35 +14,26 @@ class ProductListPage extends StatefulWidget {
 }
 
 class _ProductListPageState extends State<ProductListPage> {
-  final List<Map<String, dynamic>> products = [
-    {
-      'id': 1,
-      'name': '1 Pole 16A MCB Schneider',
-      'brand': 'Schneider',
-      'spec': 'Rating: 16A, Poles: 1P, Type: C',
-    },
-    {
-      'id': 2,
-      'name': '25L Water Heater Havells',
-      'brand': 'Havells',
-      'spec': '25L, 5 Star BEE, Glasslined',
-    },
-    {
-      'id': 3,
-      'name': 'Modular Switch 6A Legrand',
-      'brand': 'Legrand',
-      'spec': '6A, 1 Way, Child Safe',
-    },
-    {
-      'id': 4,
-      'name': 'LED Ceiling Light 18W Philips',
-      'brand': 'Philips',
-      'spec': '18W, Neutral White, 6500K',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    // Fetch products on initialization
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<ProductProvider>(context, listen: false).fetchProducts();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final provider = Provider.of<ProductProvider>(context);
+    
+    // Filter by category if needed
+    final List<Product> products = widget.category == 'All Products'
+        ? provider.products
+        : provider.products
+            .where((p) => p.category.toLowerCase().contains(widget.category.toLowerCase()))
+            .toList();
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Column(
@@ -50,14 +44,21 @@ class _ProductListPageState extends State<ProductListPage> {
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: Column(
                   children: [
                     Row(
                       children: [
                         GestureDetector(
-                          onTap: () => Navigator.pop(context),
-                          child: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
+                          onTap: () => context.pop(),
+                          child: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         const Expanded(
@@ -80,14 +81,17 @@ class _ProductListPageState extends State<ProductListPage> {
                         Text(
                           'Home / ',
                           style: TextStyle(
-                              color: Colors.white.withOpacity(0.7), fontSize: 12),
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 12,
+                          ),
                         ),
                         Text(
                           widget.category,
                           style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600),
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),
@@ -114,7 +118,10 @@ class _ProductListPageState extends State<ProductListPage> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
@@ -135,18 +142,37 @@ class _ProductListPageState extends State<ProductListPage> {
 
           // ── Product grid ─────────────────────────────────
           Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.all(12),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                childAspectRatio: 0.72,
-              ),
-              itemCount: products.length,
-              itemBuilder: (context, index) =>
-                  _ProductCard(products[index]),
-            ),
+            child: provider.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : provider.error != null
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+                            const SizedBox(height: 16),
+                            Text(provider.error!),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () => provider.fetchProducts(),
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : products.isEmpty
+                        ? const Center(child: Text('No products found.'))
+                        : GridView.builder(
+                            padding: const EdgeInsets.all(12),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                              childAspectRatio: 0.72,
+                            ),
+                            itemCount: products.length,
+                            itemBuilder: (context, index) => _ProductCard(products[index]),
+                          ),
           ),
         ],
       ),
@@ -155,7 +181,7 @@ class _ProductListPageState extends State<ProductListPage> {
 }
 
 class _ProductCard extends StatefulWidget {
-  final Map<String, dynamic> product;
+  final Product product;
   const _ProductCard(this.product);
 
   @override
@@ -163,23 +189,30 @@ class _ProductCard extends StatefulWidget {
 }
 
 class _ProductCardState extends State<_ProductCard> {
-  bool _compareChecked = false;
+  bool _isComparing = false;
 
   @override
   Widget build(BuildContext context) {
+    final provider = Provider.of<ProductProvider>(context, listen: false);
+    _isComparing = provider.comparisonList.any((p) => p.barcode == widget.product.barcode);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.divider),
         boxShadow: const [
-          BoxShadow(color: Color(0x08000000), blurRadius: 4, offset: Offset(0, 2)),
+          BoxShadow(
+            color: Color(0x08000000),
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Product image
+          // Product image placeholder
           Container(
             height: 110,
             width: double.infinity,
@@ -188,8 +221,11 @@ class _ProductCardState extends State<_ProductCard> {
               borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
             ),
             child: const Center(
-              child: Icon(Icons.electrical_services,
-                  size: 48, color: Color(0xFFBBCCDD)),
+              child: Icon(
+                Icons.inventory_2_outlined,
+                size: 48,
+                color: Color(0xFFBBCCDD),
+              ),
             ),
           ),
 
@@ -200,62 +236,85 @@ class _ProductCardState extends State<_ProductCard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.product['name'] as String,
+                  widget.product.name,
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     height: 1.3,
                   ),
-                  maxLines: 3,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  widget.product['spec'] as String,
+                  '${widget.product.brand} • ${widget.product.category}',
                   style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 9.5,
                     height: 1.4,
                   ),
-                  maxLines: 2,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 6),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      context.push('/product-details/890123456789');
+                      context.push('/product/${widget.product.barcode}');
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       minimumSize: const Size(0, 0),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6)),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
                     ),
-                    child: const Text('View Details',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                    child: const Text(
+                      'View Details',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
                 // Add to Compare
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _compareChecked,
-                      onChanged: (v) => setState(() => _compareChecked = v ?? false),
-                      activeColor: AppColors.primary,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    const Text(
-                      'Add to Compare',
-                      style: TextStyle(
+                InkWell(
+                  onTap: () {
+                    if (_isComparing) {
+                      provider.removeFromComparison(widget.product.barcode);
+                    } else {
+                      provider.addToComparison(widget.product);
+                    }
+                  },
+                  child: Row(
+                    children: [
+                      Checkbox(
+                        value: _isComparing,
+                        onChanged: (v) {
+                          if (v == true) {
+                            provider.addToComparison(widget.product);
+                          } else {
+                            provider.removeFromComparison(widget.product.barcode);
+                          }
+                        },
+                        activeColor: AppColors.primary,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      const Text(
+                        'Add to Compare',
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 10,
-                          fontWeight: FontWeight.w500),
-                    ),
-                  ],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -265,3 +324,4 @@ class _ProductCardState extends State<_ProductCard> {
     );
   }
 }
+

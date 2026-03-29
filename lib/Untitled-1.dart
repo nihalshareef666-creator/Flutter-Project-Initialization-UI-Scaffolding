@@ -23,9 +23,10 @@ class EP_Retail_Dashboard extends StatelessWidget {
                 Text(
                   "Welcome, Staff",
                   style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white),
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
                 SizedBox(height: 4),
                 Text(
@@ -38,9 +39,10 @@ class EP_Retail_Dashboard extends StatelessWidget {
                 Text(
                   "Quick Buttons",
                   style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
                 ),
                 SizedBox(height: 12),
                 _buildQuickButtons(),
@@ -57,10 +59,22 @@ class EP_Retail_Dashboard extends StatelessWidget {
           showSelectedLabels: true,
           showUnselectedLabels: true,
           items: [
-            BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-            BottomNavigationBarItem(icon: Icon(Icons.search_rounded), label: 'Search'),
-            BottomNavigationBarItem(icon: Icon(Icons.compare_arrows), label: 'Compare'),
-            BottomNavigationBarItem(icon: Icon(Icons.person_outline_rounded), label: 'Profile'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_filled),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.search_rounded),
+              label: 'Search',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.compare_arrows),
+              label: 'Compare',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline_rounded),
+              label: 'Profile',
+            ),
           ],
         ),
       ),
@@ -101,16 +115,33 @@ class EP_Retail_Dashboard extends StatelessWidget {
         crossAxisCount: 4,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
-        physics: NeverScrollableScrollPhysics(), // Prevent grid-within-column scroll
+        physics:
+            NeverScrollableScrollPhysics(), // Prevent grid-within-column scroll
         children: [
           _buildCategoryItem("Electrical", Icons.bolt, Colors.amber[200]!),
-          _buildCategoryItem("Plumbing", Icons.water_drop, Colors.lightBlueAccent),
-          _buildCategoryItem("Lighting", Icons.lightbulb_outline, Colors.yellow),
+          _buildCategoryItem(
+            "Plumbing",
+            Icons.water_drop,
+            Colors.lightBlueAccent,
+          ),
+          _buildCategoryItem(
+            "Lighting",
+            Icons.lightbulb_outline,
+            Colors.yellow,
+          ),
           _buildCategoryItem("Pipes", Icons.stacked_bar_chart, Colors.grey),
-          _buildCategoryItem("Electrical", Icons.bolt, Colors.amber[200]!), // Second row example, re-using for spacing
+          _buildCategoryItem(
+            "Electrical",
+            Icons.bolt,
+            Colors.amber[200]!,
+          ), // Second row example, re-using for spacing
           _buildCategoryItem("Pipes", Icons.stacked_bar_chart, Colors.grey),
           _buildCategoryItem("Switches", Icons.power, Colors.green),
-          _buildCategoryItem("Bathroom Fittings", Icons.bathtub_outlined, Colors.pinkAccent[100]!),
+          _buildCategoryItem(
+            "Bathroom Fittings",
+            Icons.bathtub_outlined,
+            Colors.pinkAccent[100]!,
+          ),
         ],
       ),
     );
@@ -145,9 +176,15 @@ class EP_Retail_Dashboard extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         _buildQuickButtonColumn("Product Search", Icons.manage_search_rounded),
-        _buildQuickButtonColumn("Compare Products", Icons.compare_arrows_rounded),
+        _buildQuickButtonColumn(
+          "Compare Products",
+          Icons.compare_arrows_rounded,
+        ),
         _buildQuickButtonColumn("Scan Barcode", Icons.qr_code_scanner_rounded),
-        _buildQuickButtonColumn("Stock Check", Icons.check_circle_outline_rounded),
+        _buildQuickButtonColumn(
+          "Stock Check",
+          Icons.check_circle_outline_rounded,
+        ),
       ],
     );
   }

@@ -1,54 +1,258 @@
 import 'package:flutter/material.dart';
 import 'package:testpro26/main.dart';
-import 'package:testpro26/models/user_model.dart';
 import 'package:testpro26/pages/ai_recommendations_page.dart';
 import 'package:go_router/go_router.dart';
 
-class HomePage extends StatelessWidget {
-  final User? user;
-  const HomePage({super.key, this.user});
+import 'package:testpro26/providers/product_provider.dart';
+import 'package:testpro26/models/product_model.dart';
+import 'package:provider/provider.dart';
+import 'dart:async';
+
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+  
+  Timer? _debounce;
+  bool _isLoading = false;
+  bool _isError = false;
+  List<Product> _suggestions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _searchFocusNode.addListener(() {
+      if (_searchFocusNode.hasFocus) {
+        _showOverlay();
+      } else {
+        _hideOverlay();
+      }
+    });
+
+    // Fetch products once on dashboard load 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<ProductProvider>(context, listen: false).fetchProducts();
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    _hideOverlay();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    if (query.isEmpty) {
+      setState(() {
+         _suggestions = [];
+         _isLoading = false;
+         _isError = false;
+      });
+      _overlayEntry?.markNeedsBuild();
+      return;
+    }
+
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () async {
+      setState(() {
+        _isLoading = true;
+        _isError = false;
+      });
+      _overlayEntry?.markNeedsBuild();
+      try {
+        if (!mounted) return;
+        final provider = Provider.of<ProductProvider>(context, listen: false);
+        final results = await provider.searchProducts(query);
+        if (mounted) {
+          setState(() {
+            _suggestions = results;
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isError = true;
+            _isLoading = false;
+          });
+        }
+      }
+      _overlayEntry?.markNeedsBuild();
+    });
+  }
+
+  void _showOverlay() {
+    if (_overlayEntry != null) return;
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final size = renderBox.size;
+    
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        width: size.width - 40, // 20 padding on each side
+        child: CompositedTransformFollower(
+          link: _layerLink,
+          showWhenUnlinked: false,
+          offset: const Offset(0.0, 60.0), // height of search bar + offset
+          child: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(16),
+            color: Colors.white,
+            clipBehavior: Clip.antiAlias,
+            child: _buildSuggestionsContainer(),
+          ),
+        ),
+      ),
+    );
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _hideOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  void _onSearch() {
+    final query = _searchController.text.trim();
+    if (query.isNotEmpty) {
+      _searchFocusNode.unfocus();
+      context.push('/product/$query');
+    }
+  }
+
+  Widget _buildSuggestionsContainer() {
+    if (_isLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(24.0),
+        child: Center(
+          child: SizedBox(
+            width: 24, 
+            height: 24, 
+            child: CircularProgressIndicator(strokeWidth: 2)
+          )
+        ),
+      );
+    }
+    
+    if (_isError) {
+      return const Padding(
+        padding: EdgeInsets.all(24.0),
+        child: Center(
+          child: Text(
+            'Unable to fetch suggestions',
+            style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)
+          )
+        ),
+      );
+    }
+
+    if (_suggestions.isEmpty && _searchController.text.trim().isNotEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(24.0),
+        child: Center(
+          child: Text(
+            'No products found',
+            style: TextStyle(color: AppColors.textSecondary)
+          )
+        ),
+      );
+    }
+
+    if (_suggestions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 300),
+      child: ListView.separated(
+        padding: EdgeInsets.zero,
+        shrinkWrap: true,
+        itemCount: _suggestions.length,
+        separatorBuilder: (context, index) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final p = _suggestions[index];
+          return InkWell(
+            onTap: () {
+              _searchFocusNode.unfocus();
+              context.push('/product/${p.barcode}');
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                   Container(
+                     width: 40,
+                     height: 40,
+                     decoration: BoxDecoration(
+                       color: AppColors.background,
+                       borderRadius: BorderRadius.circular(8),
+                     ),
+                     child: const Icon(Icons.inventory_2_outlined, color: AppColors.textHint, size: 20),
+                   ),
+                   const SizedBox(width: 12),
+                   Expanded(
+                     child: Column(
+                       crossAxisAlignment: CrossAxisAlignment.start,
+                       children: [
+                         Text(
+                           p.name,
+                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                           maxLines: 1,
+                           overflow: TextOverflow.ellipsis,
+                         ),
+                         Text(
+                           p.brand,
+                           style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                         ),
+                       ],
+                     ),
+                   ),
+                   const Icon(Icons.call_made, size: 16, color: AppColors.textHint),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final bool isAdministrator = user?.role == UserRole.administrator;
-    final Color themeColor = isAdministrator ? const Color(0xFF673AB7) : AppColors.primary;
+    const Color themeColor = AppColors.primary;
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _HomeAppBar(user: user, themeColor: themeColor),
-          if (isAdministrator) ...[
-            const SizedBox(height: 20),
-            _AdminStatsSection(),
-            const SizedBox(height: 20),
-            _AdminQuickActions(),
-          ],
+          _buildAppBar(context, themeColor),
           const SizedBox(height: 20),
-          _StatsSection(isAdministrator: isAdministrator),
+          _buildStatsSection(),
           const SizedBox(height: 24),
-          _CategoriesSection(),
+          _buildCategoriesSection(context),
           const SizedBox(height: 24),
-          _RecentProductsSection(),
+          _buildRecentProductsSection(),
           const SizedBox(height: 24),
-          _AIRecommendedSection(),
+          _buildAIRecommendedSection(context),
           const SizedBox(height: 24),
-          _QuickButtonsSection(),
+          _buildQuickButtonsSection(context),
           const SizedBox(height: 30),
         ],
       ),
     );
   }
-}
 
-// ─── App Bar ──────────────────────────────────────────────────
-class _HomeAppBar extends StatelessWidget {
-  final User? user;
-  final Color themeColor;
-  const _HomeAppBar({this.user, required this.themeColor});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildAppBar(BuildContext context, Color themeColor) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
       decoration: BoxDecoration(
@@ -63,63 +267,23 @@ class _HomeAppBar extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (user?.role == UserRole.administrator || user?.role == UserRole.admin)
-                    IconButton(
-                      icon: const Icon(Icons.menu, color: Colors.white),
-                      onPressed: () => Scaffold.of(context).openDrawer(),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                  const Text(
+                    'TechPlumb Solutions',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
                     ),
-                  if (user?.role == UserRole.administrator || user?.role == UserRole.admin)
-                    const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'TechPlumb Solutions',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      Text(
-                        'Precision in every part',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
                   ),
-                ],
-              ),
-              Stack(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.notifications_outlined, color: Colors.white),
-                  ),
-                  Positioned(
-                    right: 4,
-                    top: 4,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: AppColors.error,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Text(
-                        '3',
-                        style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
-                      ),
+                  Text(
+                    'Precision in every part',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 13,
                     ),
                   ),
                 ],
@@ -128,50 +292,70 @@ class _HomeAppBar extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           // Search Field
-          GestureDetector(
-            onTap: () {
-              // Action bypassed
-            },
-            child: Container(
-              height: 52,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
+                CompositedTransformTarget(
+                  link: _layerLink,
+                  child: Container(
+                    height: 52,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.search, color: AppColors.textSecondary),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            onChanged: _onSearchChanged,
+                            decoration: const InputDecoration(
+                              hintText: 'Search product by name or barcode',
+                              hintStyle: TextStyle(
+                                color: AppColors.textHint,
+                                fontSize: 15,
+                              ),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                            ),
+                            onSubmitted: (_) => _onSearch(),
+                            textInputAction: TextInputAction.search,
+                          ),
+                        ),
+                        if (_searchController.text.isNotEmpty)
+                          IconButton(
+                            icon: const Icon(Icons.close, color: AppColors.textHint),
+                            onPressed: () {
+                              _searchController.clear();
+                              _onSearchChanged('');
+                            },
+                          ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_forward,
+                            color: AppColors.primary,
+                          ),
+                          onPressed: _onSearch,
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.search, color: AppColors.textSecondary),
-                  SizedBox(width: 12),
-                  Text(
-                    'Search products, brand or specs...',
-                    style: TextStyle(color: AppColors.textHint, fontSize: 15),
-                  ),
-                ],
-              ),
-            ),
-          ),
+                ),
         ],
       ),
     );
   }
-}
 
-// ─── Stats Section ────────────────────────────────────────────
-class _StatsSection extends StatelessWidget {
-  final bool isAdministrator;
-  const _StatsSection({this.isAdministrator = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final Color themeColor = isAdministrator ? const Color(0xFF673AB7) : AppColors.primary;
+  Widget _buildStatsSection() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
@@ -192,10 +376,14 @@ class _StatsSection extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: themeColor.withOpacity(0.1),
+                color: AppColors.primary.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(15),
               ),
-              child: Icon(Icons.inventory_2, color: themeColor, size: 30),
+              child: const Icon(
+                Icons.inventory_2,
+                color: AppColors.primary,
+                size: 30,
+              ),
             ),
             const SizedBox(width: 20),
             Column(
@@ -210,9 +398,9 @@ class _StatsSection extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  '1,247',
-                  style: TextStyle(
+                Text(
+                  Provider.of<ProductProvider>(context).products.length.toString(),
+                  style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 28,
                     fontWeight: FontWeight.w800,
@@ -225,21 +413,24 @@ class _StatsSection extends StatelessWidget {
       ),
     );
   }
-}
 
-// ─── Categories ───────────────────────────────────────────────
-class _CategoriesSection extends StatelessWidget {
-  final List<Map<String, dynamic>> _categories = [
-    {'label': 'Electrical', 'icon': Icons.bolt, 'color': Colors.blue},
-    {'label': 'Plumbing', 'icon': Icons.water_drop, 'color': Colors.cyan},
-    {'label': 'Lighting', 'icon': Icons.lightbulb, 'color': Colors.amber},
-    {'label': 'Pipes', 'icon': Icons.horizontal_distribute, 'color': Colors.indigo},
-    {'label': 'Tools', 'icon': Icons.build, 'color': Colors.orange},
-    {'label': 'Bathroom Fittings', 'icon': Icons.bathtub_outlined, 'color': Colors.pink},
-  ];
+  Widget _buildCategoriesSection(BuildContext context) {
+    final List<Map<String, dynamic>> categories = [
+      {'label': 'Electrical', 'icon': Icons.bolt, 'color': Colors.blue},
+      {'label': 'Plumbing', 'icon': Icons.water_drop, 'color': Colors.cyan},
+      {'label': 'Lighting', 'icon': Icons.lightbulb, 'color': Colors.amber},
+      {
+        'label': 'Pipes',
+        'icon': Icons.horizontal_distribute,
+        'color': Colors.indigo,
+      },
+      {
+        'label': 'Bathroom Fittings',
+        'icon': Icons.bathtub_outlined,
+        'color': Colors.pink,
+      },
+    ];
 
-  @override
-  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -260,13 +451,39 @@ class _CategoriesSection extends StatelessWidget {
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _categories.length,
+            itemCount: categories.length,
             itemBuilder: (context, index) {
-              final cat = _categories[index];
-              return _CategoryItem(
-                label: cat['label'],
-                icon: cat['icon'],
-                color: cat['color'],
+              final cat = categories[index];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: InkWell(
+                  onTap: () {
+                    context.push('/category/${cat['label']}');
+                  },
+                  borderRadius: BorderRadius.circular(18),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: cat['color'].withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Icon(cat['icon'], color: cat['color'], size: 28),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        cat['label'],
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               );
             },
           ),
@@ -274,55 +491,9 @@ class _CategoriesSection extends StatelessWidget {
       ],
     );
   }
-}
 
-class _CategoryItem extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color color;
+  Widget _buildRecentProductsSection() {
 
-  const _CategoryItem({required this.label, required this.icon, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Column(
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Icon(icon, color: color, size: 28),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Recent Products ──────────────────────────────────────────
-class _RecentProductsSection extends StatelessWidget {
-  final List<Map<String, String>> _recent = [
-    {'name': 'Havells Adonia R 25L', 'category': 'Electrical'},
-    {'name': 'Schneider MCB 1 Pole', 'category': 'Electrical'},
-    {'name': 'Philips 12W LED', 'category': 'Lighting'},
-  ];
-
-  @override
-  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -332,92 +503,93 @@ class _RecentProductsSection extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Recently Viewed',
+                'Other Available Products',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
                 ),
               ),
-              TextButton(
-                onPressed: () {},
-                child: const Text('Clear All'),
-              ),
+              TextButton(onPressed: () {}, child: const Text('View All')),
             ],
           ),
         ),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 120,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _recent.length,
-            itemBuilder: (context, index) {
-              final p = _recent[index];
-              return Container(
-                width: 180,
-                margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.divider),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      p['name']!,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+        Consumer<ProductProvider>(
+          builder: (context, provider, child) {
+            final displays = provider.products.take(3).toList();
+            if (displays.isEmpty) return const SizedBox.shrink();
+            
+            return SizedBox(
+              height: 120,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: displays.length,
+                itemBuilder: (context, index) {
+                  final p = displays[index];
+                  return Container(
+                    width: 180,
+                    margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.divider),
                     ),
-                    const SizedBox(height: 4),
-                    Text(p['category']!, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                    const Spacer(),
-                    SizedBox(
-                      width: double.infinity,
-                      child: TextButton(
-                        onPressed: () {},
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: const Size(0, 30),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          p.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: AppColors.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        child: const Text('Quick View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                      ),
+                        const SizedBox(height: 4),
+                        Text(
+                          p.brand,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const Spacer(),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton(
+                            onPressed: () => context.push('/product/${p.barcode}'),
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(0, 30),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text(
+                              'Quick View',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
-            },
-          ),
+                  );
+                },
+              ),
+            );
+          },
         ),
       ],
     );
   }
-}
 
-// ─── AI Recommended ──────────────────────────────────────────
-class _AIRecommendedSection extends StatelessWidget {
-  final List<Map<String, String>> _recommended = [
-    {
-      'name': 'Havells Adonia R',
-      'brand': 'Havells',
-      'specs': '25L, 5 Star, WiFi',
-      'tag': 'Best Efficiency'
-    },
-    {
-      'name': 'Jaquar Alive Faucet',
-      'brand': 'Jaquar',
-      'specs': 'Chrome, Single Lever',
-      'tag': 'Premium Design'
-    },
-  ];
+  Widget _buildAIRecommendedSection(BuildContext context) {
 
-  @override
-  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -444,7 +616,9 @@ class _AIRecommendedSection extends StatelessWidget {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const AIProductRecommendationPage()),
+                    MaterialPageRoute(
+                      builder: (_) => const AIProductRecommendationPage(),
+                    ),
                   );
                 },
                 child: const Text('View All'),
@@ -452,157 +626,105 @@ class _AIRecommendedSection extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 130,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _recommended.length,
-            itemBuilder: (context, index) {
-              final p = _recommended[index];
-              return Container(
-                width: 220,
-                margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(color: Colors.orange.withOpacity(0.05), blurRadius: 10, spreadRadius: 2),
-                  ],
-                  border: Border.all(color: Colors.orange.withOpacity(0.1)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(p['brand']!, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange)),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-                          child: Text(p['tag']!, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.orange)),
+        Consumer<ProductProvider>(
+          builder: (context, provider, child) {
+            final recommended = provider.products.where((p) => p.rating >= 4.5).toList();
+            if (recommended.isEmpty) return const SizedBox.shrink();
+            
+            return SizedBox(
+              height: 130,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: recommended.length,
+                itemBuilder: (context, index) {
+                  final p = recommended[index];
+                  return Container(
+                    width: 220,
+                    margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.orange.withOpacity(0.05),
+                          blurRadius: 10,
+                          spreadRadius: 2,
                         ),
                       ],
+                      border: Border.all(color: Colors.orange.withOpacity(0.1)),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      p['name']!,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    child: InkWell(
+                      onTap: () => context.push('/product/${p.barcode}'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                p.brand,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'Rating: ${p.rating}',
+                                  style: const TextStyle(
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.orange,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            p.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: AppColors.textPrimary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            p.category,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const Spacer(),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(p['specs']!, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    const Spacer(),
-                  ],
-                ),
-              );
-            },
-          ),
+                  );
+                },
+              ),
+            );
+          },
         ),
       ],
     );
   }
-}
 
-// ─── Administrator Sections ───────────────────────────────────
-class _AdminStatsSection extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Administrator Dashboard',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF673AB7)),
-          ),
-          const SizedBox(height: 12),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 1.8,
-            children: [
-              _simpleStatCard('Total Shops', '24', Icons.store, Colors.blue),
-              _simpleStatCard('Pending Requests', '12', Icons.verified_user, Colors.orange),
-              _simpleStatCard('Total Products', '12,482', Icons.inventory_2, Colors.green),
-              _simpleStatCard('Total Users', '1,482', Icons.people, Colors.teal),
-              _simpleStatCard('Activity Logs', '189', Icons.history, Colors.purple),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _simpleStatCard(String label, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: 8),
-          Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-        ],
-      ),
-    );
-  }
-}
-
-class _AdminQuickActions extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _quickActionIcon(Icons.business_center, 'Shops'),
-          _quickActionIcon(Icons.how_to_reg, 'Verify'),
-          _quickActionIcon(Icons.people_alt, 'Users'),
-          _quickActionIcon(Icons.terminal, 'Logs'),
-        ],
-      ),
-    );
-  }
-
-  Widget _quickActionIcon(IconData icon, String label) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF673AB7).withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.business_center, color: Color(0xFF673AB7), size: 24),
-        ),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-      ],
-    );
-  }
-}
-
-// ─── Quick Buttons ────────────────────────────────────────────
-class _QuickButtonsSection extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildQuickButtonsSection(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
@@ -617,7 +739,7 @@ class _QuickButtonsSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _QuickButton(
+          _buildQuickButton(
             title: 'Barcode Scanner',
             subtitle: 'Scan product for quick info',
             icon: Icons.qr_code_scanner,
@@ -627,38 +749,47 @@ class _QuickButtonsSection extends StatelessWidget {
             },
           ),
           const SizedBox(height: 12),
-          _QuickButton(
+          _buildQuickButton(
             title: 'Product Comparison',
-            subtitle: 'Compare up to 3 products',
+            subtitle: 'Compare up to 4 products',
             icon: Icons.compare_arrows,
             color: Colors.teal,
             onTap: () {
               context.push('/compare');
             },
           ),
+          const SizedBox(height: 12),
+          _buildQuickButton(
+            title: 'Profile',
+            subtitle: 'Manage your personal settings',
+            icon: Icons.person,
+            color: Colors.orange,
+            onTap: () {
+              context.push('/profile');
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildQuickButton(
+            title: 'Inventory Management',
+            subtitle: 'Add and Manage products',
+            icon: Icons.inventory_2_outlined,
+            color: Colors.blueAccent,
+            onTap: () {
+              context.push('/my-products');
+            },
+          ),
         ],
       ),
     );
   }
-}
 
-class _QuickButton extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _QuickButton({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildQuickButton({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -683,8 +814,20 @@ class _QuickButton extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -695,4 +838,3 @@ class _QuickButton extends StatelessWidget {
     );
   }
 }
-

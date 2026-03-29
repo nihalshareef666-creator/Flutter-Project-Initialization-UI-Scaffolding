@@ -1,106 +1,168 @@
 import 'package:flutter/material.dart';
 import 'package:testpro26/models/product_model.dart';
-import 'package:testpro26/models/user_model.dart';
+import 'package:testpro26/services/api_service.dart';
 
 class ProductProvider with ChangeNotifier {
-  // Mock Data DB
-  final List<Product> _products = [
-    Product(
-      id: 1,
-      name: 'Havells Adonia R 25L',
-      brand: 'Havells',
-      category: 'Water Heater',
-      barcode: '890123456789',
-      addedBy: 'admin',
-      addedByRole: UserRole.admin,
-      shopName: 'TechPlumb',
-      dateAdded: DateTime.now(),
-      voltage: '2000W',
-      material: 'Glasslined Steel',
-      type: 'IoT Enabled, 5 Star',
-      warranty: '2yr Tank',
-      isAiRecommended: true,
-      imageUrl: 'https://via.placeholder.com/150',
-    ),
-    Product(
-      id: 2,
-      name: 'V-Guard Calisto 25L',
-      brand: 'V-Guard',
-      category: 'Water Heater',
-      barcode: '890123456790',
-      addedBy: 'admin',
-      addedByRole: UserRole.admin,
-      shopName: 'TechPlumb',
-      dateAdded: DateTime.now(),
-      voltage: '2000W',
-      material: 'Classlined Steel',
-      type: '4 Star BEE',
-      warranty: '5yr Tank',
-      imageUrl: 'https://via.placeholder.com/150',
-    ),
-    Product(
-      id: 3,
-      name: 'Schneider MCB 16A',
-      brand: 'Schneider',
-      category: 'Electricals',
-      barcode: '890123456791',
-      addedBy: 'admin',
-      addedByRole: UserRole.admin,
-      shopName: 'TechPlumb',
-      dateAdded: DateTime.now(),
-      voltage: '16A',
-      material: 'Polycarbonate',
-      type: '1 Pole, Type C',
-      warranty: '1yr',
-      imageUrl: 'https://via.placeholder.com/150',
-    ),
-    // Additional Mock items
-    Product(
-      id: 4,
-      name: 'Anchor Roma Switch 6A',
-      brand: 'Anchor',
-      category: 'Switches',
-      barcode: '123456789012',
-      addedBy: 'staff',
-      addedByRole: UserRole.staff,
-      shopName: 'TechPlumb',
-      dateAdded: DateTime.now(),
-      voltage: '6A',
-      material: 'Plastic',
-      type: 'Modular',
-      warranty: 'N/A',
-      imageUrl: 'https://via.placeholder.com/150',
-    )
-  ];
+  final ApiService _apiService = ApiService();
 
-  List<Product> get products => _products;
-
-  // Comparison List State
+  // API State
+  bool _isLoading = false;
+  String? _error;
+  List<Product> _allProducts = [];
   final List<Product> _comparisonList = [];
+
+  bool get isLoading => _isLoading;
+  String? get error => _error;
+  List<Product> get products => _allProducts;
   List<Product> get comparisonList => _comparisonList;
 
-  Product? getProductByBarcode(String barcode) {
+  // -------------------------------
+  // PRODUCT FETCHING
+  // -------------------------------
+
+  /// Fetch all products from API
+  Future<void> fetchProducts() async {
+    _setLoading(true);
+    _clearError();
+
     try {
-      return _products.firstWhere((p) => p.barcode == barcode);
+      final bikes = await _apiService.fetchAllProducts();
+      _allProducts = bikes;
+      notifyListeners();
+    } catch (e) {
+      _setError('Server error: ${e.toString()}');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Get specific product by barcode from API or Cache
+  Future<Product?> fetchProductByBarcode(String barcode) async {
+    // 1. Check local state (cache)
+    try {
+      final cached = _allProducts.firstWhere((p) => p.barcode == barcode);
+      return cached;
     } catch (_) {
+      // 2. Not in state, fetch from API
+      _setLoading(true);
+      _clearError();
+
+      try {
+        final product = await _apiService.fetchProductByBarcode(barcode);
+        
+        if (product != null) {
+          // Store in state if not exists
+          if (!_allProducts.any((p) => p.barcode == barcode)) {
+             _allProducts.add(product);
+          }
+          return product;
+        } else {
+          _setError('Product not found');
+          return null;
+        }
+      } catch (e) {
+        _setError('Server error: ${e.toString()}');
+        return null;
+      } finally {
+        _setLoading(false);
+      }
+    }
+  }
+
+  /// Search Products using Backend API
+  Future<List<Product>> searchProducts(String query) async {
+    if (query.isEmpty) return _allProducts;
+    
+    _setLoading(true);
+    try {
+      final results = await _apiService.searchProducts(query);
+      return results;
+    } catch (e) {
+      _setError('Search failed: $e');
+      return [];
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Add Product to Backend
+  Future<bool> addProduct(Product product) async {
+    _setLoading(true);
+    _clearError();
+    try {
+      final newProduct = await _apiService.addProduct(product);
+      _allProducts.add(newProduct);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _setError('Failed to add product: ${e.toString()}');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // -------------------------------
+  // COMPARISON LOGIC
+  // -------------------------------
+
+  /// Get Comparison Data from AI or POST /compare
+  Future<String?> getAiProductComparison() async {
+    if (_comparisonList.isEmpty) return 'No products selected for comparison.';
+
+    _setLoading(true);
+    _clearError();
+
+    try {
+      final barcodes = _comparisonList.map((p) => p.barcode).toList();
+      final response = await _apiService.fetchComparisonData(barcodes);
+      
+      // Assume backend returns { "recommendation": "..." } or "data"
+      return response['recommendation']?.toString() ?? response['data']?.toString() ?? 'Comparison completed.';
+    } catch (e) {
+      _setError('Comparison Error: ${e.toString()}');
       return null;
+    } finally {
+      _setLoading(false);
     }
   }
 
   bool addToComparison(Product product) {
-    if (_comparisonList.length >= 4) {
-      return false; // Limit up to 4
-    }
-    // Prevent duplicates
-    if (!_comparisonList.any((p) => p.id == product.id)) {
+    if (_comparisonList.length >= 4) return false;
+    
+    if (!_comparisonList.any((p) => p.barcode == product.barcode)) {
       _comparisonList.add(product);
       notifyListeners();
     }
     return true;
   }
 
-  void removeFromComparison(int productId) {
-    _comparisonList.removeWhere((p) => p.id == productId);
+  void removeFromComparison(String barcode) {
+    _comparisonList.removeWhere((p) => p.barcode == barcode);
+    notifyListeners();
+  }
+
+  void clearComparison() {
+    _comparisonList.clear();
+    notifyListeners();
+  }
+
+  // -------------------------------
+  // HELPERS
+  // -------------------------------
+
+  void _setLoading(bool value) {
+    _isLoading = value;
+    notifyListeners();
+  }
+
+  void _setError(String? message) {
+    _error = message;
+    notifyListeners();
+  }
+
+  void _clearError() {
+    _error = null;
     notifyListeners();
   }
 }

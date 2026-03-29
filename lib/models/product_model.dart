@@ -1,39 +1,39 @@
-import 'package:testpro26/models/user_model.dart';
-
 class Product {
-  final int id;
   final String name;
   final String brand;
   final String category;
   final String barcode;
-  final String addedBy;
-  final UserRole addedByRole;
-  final String shopName;
-  final DateTime dateAdded;
-
-  // New specific fields for detail and comparison
-  final String voltage;
-  final String material;
-  final String type;
-  final String warranty;
-  final String imageUrl;
-  final bool isAiRecommended;
+  final double price;
+  final double rating;
 
   Product({
-    required this.id,
     required this.name,
     required this.brand,
     required this.category,
     required this.barcode,
-    required this.addedBy,
-    required this.addedByRole,
-    required this.shopName,
-    required this.dateAdded,
-    this.voltage = 'N/A',
-    this.material = 'N/A',
-    this.type = 'N/A',
-    this.warranty = 'N/A',
-    this.imageUrl = '',
-    this.isAiRecommended = false,
+    required this.price,
+    required this.rating,
   });
+
+  factory Product.fromJson(Map<String, dynamic> json) {
+    return Product(
+      name: json['name'] ?? 'Unknown',
+      brand: json['brand'] ?? 'Unknown',
+      category: json['category'] ?? 'General',
+      barcode: json['barcode'] ?? '',
+      price: (json['price'] ?? 0.0).toDouble(),
+      rating: (json['rating'] ?? 0.0).toDouble(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'brand': brand,
+      'category': category,
+      'barcode': barcode,
+      'price': price,
+      'rating': rating,
+    };
+  }
 }

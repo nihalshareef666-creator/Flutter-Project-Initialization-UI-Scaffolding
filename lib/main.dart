@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-
 import 'package:testpro26/providers/product_provider.dart';
 import 'package:testpro26/app_router.dart';
-
 // ─────────────────────────────────────────────────────────────
 //  App-wide design tokens
 // ─────────────────────────────────────────────────────────────

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:testpro26/main.dart';
 import 'package:go_router/go_router.dart';
+import 'package:testpro26/providers/product_provider.dart';
+import 'package:testpro26/models/product_model.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -11,78 +14,18 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
-  List<Map<String, dynamic>> _searchResults = [];
-  List<String> _suggestions = [];
+  List<Product> _searchResults = [];
   bool _isSearching = false;
   String _selectedFilter = 'All';
 
-  static const _allProducts = [
-    {
-      'name': 'Havells Adonia R 25L Water Heater',
-      'brand': 'Havells',
-      'sku': 'PRD1001',
-      'category': 'Electrical',
-      'stock': true,
-      'specs': '25L, 5 Star BEE',
-      'features': 'IoT Enabled, WiFi',
-    },
-    {
-      'name': '1 Pole 16A MCB Schneider',
-      'brand': 'Schneider',
-      'sku': 'PRD1002',
-      'category': 'Electrical',
-      'stock': true,
-      'specs': '1 Pole, 16A, Type C',
-      'features': 'Fast Tripping',
-    },
-    {
-      'name': 'V-Guard Calisto 25L Water Heater',
-      'brand': 'V-Guard',
-      'sku': 'PRD1003',
-      'category': 'Electrical',
-      'stock': false,
-      'specs': '25L, 4 Star BEE',
-      'features': 'Anti-corrosive tank',
-    },
-    {
-      'name': 'Legrand Arteor Switch 6A White',
-      'brand': 'Legrand',
-      'sku': 'PRD1004',
-      'category': 'Switches',
-      'stock': true,
-      'specs': '6A, 1 Way, Modular',
-      'features': 'Child Safe',
-    },
-    {
-      'name': 'PVC Water Pipe 32mm',
-      'brand': 'Finolex',
-      'sku': 'PRD1005',
-      'category': 'Plumbing',
-      'stock': true,
-      'specs': '32mm, 6kgf/cm2',
-      'features': 'Lead Free',
-    },
-    {
-      'name': 'LED Ceiling Light 18W',
-      'brand': 'Philips',
-      'sku': 'PRD1006',
-      'category': 'Lighting',
-      'stock': true,
-      'specs': '18W, 6500K, Neutral White',
-      'features': 'EyeComfort Tech',
-    },
-    {
-      'name': 'Bathroom Faucet Chrome',
-      'brand': 'Jaquar',
-      'sku': 'PRD1007',
-      'category': 'Bathroom Fittings',
-      'stock': false,
-      'specs': 'Chrome Finish, Single Lever',
-      'features': 'Foam Flow',
-    },
+  final List<String> _filters = [
+    'All',
+    'Electrical',
+    'Plumbing',
+    'Lighting',
+    'Pipes',
+    'Bathroom Fittings',
   ];
-
-  static const _filters = ['All', 'Electrical', 'Plumbing', 'Lighting', 'Bathroom Fittings'];
 
   @override
   void dispose() {
@@ -91,38 +34,35 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   void _onSearchChanged(String query) {
-    if (query.isEmpty) {
-      setState(() {
-        _suggestions = [];
-        _searchResults = [];
-      });
-      return;
-    }
-
-    setState(() {
-      _suggestions = _allProducts
-          .where((p) => (p['name'] as String).toLowerCase().contains(query.toLowerCase()))
-          .map((p) => p['name'] as String)
-          .take(5)
-          .toList();
-    });
-
     _performSearch(query);
   }
 
   void _performSearch(String query) {
     setState(() => _isSearching = true);
+    
     Future.delayed(const Duration(milliseconds: 300), () {
       if (!mounted) return;
+      
+      final provider = Provider.of<ProductProvider>(context, listen: false);
+      final allProducts = provider.products;
+      
       setState(() {
         _isSearching = false;
-        _searchResults = _allProducts.where((p) {
-          final matchesQuery = (p['name'] as String).toLowerCase().contains(query.toLowerCase()) ||
-              (p['brand'] as String).toLowerCase().contains(query.toLowerCase()) ||
-              (p['sku'] as String).toLowerCase().contains(query.toLowerCase());
-          final matchesFilter = _selectedFilter == 'All' || p['category'] == _selectedFilter;
-          return matchesQuery && matchesFilter;
-        }).toList();
+        if (query.isEmpty && _selectedFilter == 'All') {
+          _searchResults = [];
+        } else {
+          _searchResults = allProducts.where((p) {
+            final matchesQuery = query.isEmpty ||
+                p.name.toLowerCase().contains(query.toLowerCase()) ||
+                p.brand.toLowerCase().contains(query.toLowerCase()) ||
+                p.barcode.toLowerCase().contains(query.toLowerCase());
+                
+            final matchesFilter = _selectedFilter == 'All' || 
+                p.category.toLowerCase().contains(_selectedFilter.toLowerCase());
+                
+            return matchesQuery && matchesFilter;
+          }).toList();
+        }
       });
     });
   }
@@ -137,13 +77,7 @@ class _SearchPageState extends State<SearchPage> {
             _buildSearchHeader(),
             _buildFilterBar(),
             Expanded(
-              child: Stack(
-                children: [
-                   _buildContent(),
-                   if (_suggestions.isNotEmpty && _searchController.text.isNotEmpty)
-                     _buildSuggestionsOverlay(),
-                ],
-              ),
+              child: _buildContent(),
             ),
           ],
         ),
@@ -168,8 +102,11 @@ class _SearchPageState extends State<SearchPage> {
                 controller: _searchController,
                 onChanged: _onSearchChanged,
                 decoration: InputDecoration(
-                  hintText: 'Search brand, category, specs...',
-                  prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+                  hintText: 'Search product, brand, or barcode...',
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: AppColors.textSecondary,
+                  ),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.close, size: 20),
@@ -186,15 +123,6 @@ class _SearchPageState extends State<SearchPage> {
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.tune, color: AppColors.primary, size: 24),
           ),
         ],
       ),
@@ -231,7 +159,9 @@ class _SearchPageState extends State<SearchPage> {
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
-                side: BorderSide(color: isSelected ? AppColors.primary : AppColors.divider),
+                side: BorderSide(
+                  color: isSelected ? AppColors.primary : AppColors.divider,
+                ),
               ),
             ),
           );
@@ -244,7 +174,7 @@ class _SearchPageState extends State<SearchPage> {
     if (_isSearching) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_searchResults.isEmpty && _searchController.text.isNotEmpty) {
+    if (_searchResults.isEmpty && (_searchController.text.isNotEmpty || _selectedFilter != 'All')) {
       return _buildNoResults();
     }
     if (_searchResults.isEmpty) {
@@ -260,39 +190,10 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  Widget _buildSuggestionsOverlay() {
-    return Positioned(
-      top: 0,
-      left: 16,
-      right: 16,
-      child: Material(
-        elevation: 8,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: _suggestions.map((s) => ListTile(
-              leading: const Icon(Icons.history, size: 20, color: AppColors.textHint),
-              title: Text(s, style: const TextStyle(fontSize: 14)),
-              onTap: () {
-                _searchController.text = s;
-                _onSearchChanged(s);
-              },
-            )).toList(),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProductCard(Map<String, dynamic> p, BuildContext context) {
+  Widget _buildProductCard(Product p, BuildContext context) {
     return GestureDetector(
       onTap: () {
-        context.push('/product-details/890123456789');
+        context.push('/product/${p.barcode}');
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -301,7 +202,11 @@ class _SearchPageState extends State<SearchPage> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
           ],
         ),
         child: Row(
@@ -313,7 +218,10 @@ class _SearchPageState extends State<SearchPage> {
                 color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.inventory_2_outlined, color: AppColors.textHint),
+              child: const Icon(
+                Icons.inventory_2_outlined,
+                color: AppColors.textHint,
+              ),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -323,33 +231,50 @@ class _SearchPageState extends State<SearchPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(p['brand'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.primary)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: p['stock'] ? Colors.green[50] : Colors.red[50],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          p['stock'] ? 'In Stock' : 'Out of Stock',
-                          style: TextStyle(color: p['stock'] ? Colors.green : Colors.red, fontSize: 8, fontWeight: FontWeight.bold),
+                      Text(
+                        p.brand,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                          color: AppColors.primary,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(p['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
+                  Text(
+                    p.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(p['specs'], style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  Text(
+                    p.category,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  Row(
+                  const Row(
                     children: [
-                      Icon(Icons.star, size: 12, color: Colors.amber[700]),
-                      const SizedBox(width: 4),
-                      Text(p['features'] ?? 'Premium Quality', style: const TextStyle(color: Colors.amber, fontSize: 10, fontWeight: FontWeight.bold)),
-                      const Spacer(),
-                      const Text('View Details', style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold)),
-                      const Icon(Icons.chevron_right, size: 16, color: AppColors.primary),
+                      Spacer(),
+                      Text(
+                        'View Details',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right,
+                        size: 16,
+                        color: AppColors.primary,
+                      ),
                     ],
                   ),
                 ],
@@ -368,8 +293,19 @@ class _SearchPageState extends State<SearchPage> {
         children: [
           Icon(Icons.search_rounded, size: 80, color: Colors.grey[300]),
           const SizedBox(height: 16),
-          const Text('Search Products', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-          const Text('Find electrical and plumbing solutions', style: TextStyle(color: AppColors.textSecondary)),
+          const Text(
+            'Search Products',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Find electrical and plumbing solutions',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
         ],
       ),
     );
@@ -382,11 +318,22 @@ class _SearchPageState extends State<SearchPage> {
         children: [
           Icon(Icons.sentiment_dissatisfied, size: 80, color: Colors.grey[300]),
           const SizedBox(height: 16),
-          const Text('No products found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-          Text('for "${_searchController.text}"', style: const TextStyle(color: AppColors.textSecondary)),
+          const Text(
+            'No products found',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (_searchController.text.isNotEmpty)
+            Text(
+              'for "${_searchController.text}"',
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
         ],
       ),
     );
   }
 }
-
