@@ -3,10 +3,13 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:testpro26/main.dart'; // AppColors
+import 'package:provider/provider.dart';
+import 'package:testpro26/providers/product_provider.dart';
 
 class BarcodeScannerPage extends StatefulWidget {
   final bool standalone;
-  const BarcodeScannerPage({super.key, this.standalone = false});
+  final bool isComparisonMode;
+  const BarcodeScannerPage({super.key, this.standalone = false, this.isComparisonMode = false});
 
   @override
   State<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
@@ -107,14 +110,28 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage>
 
         if (!mounted) return;
 
-        // Use GoRouter to pass scanned barcode to details screen
-        context.push('/product/$code').then((_) {
-          if (mounted) {
-            setState(() {
-              _isProcessing = false;
-            });
-          }
-        });
+        if (widget.isComparisonMode) {
+          final provider = Provider.of<ProductProvider>(context, listen: false);
+          provider.fetchProductByBarcode(code).then((product) {
+            if (product != null) {
+              provider.addToComparison(product);
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Product not found in database.')),
+              );
+            }
+            if (mounted) context.pop();
+          });
+        } else {
+          // Use GoRouter to pass scanned barcode to details screen
+          context.push('/product/$code').then((_) {
+            if (mounted) {
+              setState(() {
+                _isProcessing = false;
+              });
+            }
+          });
+        }
       }
     }
   }

@@ -9,11 +9,13 @@ import 'package:testpro26/pages/profile_page.dart';
 import 'package:testpro26/pages/category_page.dart';
 import 'package:testpro26/pages/auth/login_page.dart';
 import 'package:testpro26/pages/search_page.dart';
-import 'package:testpro26/pages/my_added_products_page.dart';
+
 import 'package:testpro26/pages/edit_profile_page.dart';
 import 'package:testpro26/pages/change_password_page.dart';
 import 'package:testpro26/pages/ai_recommendations_page.dart';
 import 'package:testpro26/pages/product_list_page.dart';
+import 'package:testpro26/pages/auth/signup_page.dart';
+import 'package:testpro26/pages/auth/forgot_password_page.dart';
 
 // Simple Dashboard Wrapper
 class DashboardScreen extends StatefulWidget {
@@ -28,7 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   final List<Widget> _pages = [
     const HomePage(),
-    const SearchPage(), // Maps to bottom nav Search tab
+    const BarcodeScannerPage(standalone: false), // Scan embedded tab
     const ComparePage(),
     const ProfilePage(),
   ];
@@ -50,7 +52,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: Icon(Icons.dashboard),
             label: 'Dashboard',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
+          BottomNavigationBarItem(icon: Icon(Icons.qr_code_scanner), label: 'Scan'),
           BottomNavigationBarItem(
             icon: Icon(Icons.compare_arrows),
             label: 'Compare',
@@ -58,11 +60,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
         onTap: (index) {
-          if (index == 2) {
-            context.push('/compare');
-          } else {
-            setState(() => _currentIndex = index);
-          }
+          setState(() => _currentIndex = index);
         },
       ),
     );
@@ -77,12 +75,30 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const LoginPage(),
     ),
     GoRoute(
+      path: '/signup',
+      builder: (context, state) => const SignupPage(),
+    ),
+    GoRoute(
+      path: '/forgot-password',
+      builder: (context, state) => const ForgotPasswordPage(),
+    ),
+    GoRoute(
       path: '/dashboard',
       builder: (context, state) => const DashboardScreen(),
     ),
     GoRoute(
       path: '/scanner',
-      builder: (context, state) => const BarcodeScannerPage(standalone: true),
+      builder: (context, state) {
+        final isCompare = state.uri.queryParameters['compare'] == 'true';
+        return BarcodeScannerPage(standalone: true, isComparisonMode: isCompare);
+      },
+    ),
+    GoRoute(
+      path: '/search',
+      builder: (context, state) {
+        final isCompare = state.uri.queryParameters['compare'] == 'true';
+        return SearchPage(isComparisonMode: isCompare);
+      },
     ),
     // Map /product to ProductScreen, utilizing parameter matching
     GoRoute(
@@ -123,9 +139,6 @@ final GoRouter appRouter = GoRouter(
         return ProductListPage(category: category);
       },
     ),
-    GoRoute(
-      path: '/my-products',
-      builder: (context, state) => const MyAddedProductsPage(),
-    ),
+
   ],
 );
