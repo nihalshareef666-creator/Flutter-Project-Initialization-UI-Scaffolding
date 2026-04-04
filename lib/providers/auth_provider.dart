@@ -6,7 +6,7 @@ class AuthProvider extends ChangeNotifier {
   
   String? get currentUserEmail => _currentUserEmail;
 
-  static const String adminEmail = "nihalshareef666@gmail.com";
+  static const String adminEmail = "admin@pro26.com";
 
   bool get isAdmin => _currentUserEmail == adminEmail;
 

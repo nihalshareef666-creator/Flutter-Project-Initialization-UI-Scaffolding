@@ -9,7 +9,6 @@ import 'package:testpro26/pages/profile_page.dart';
 import 'package:testpro26/pages/category_page.dart';
 import 'package:testpro26/pages/auth/login_page.dart';
 import 'package:testpro26/pages/search_page.dart';
-
 import 'package:testpro26/pages/edit_profile_page.dart';
 import 'package:testpro26/pages/change_password_page.dart';
 import 'package:testpro26/pages/ai_recommendations_page.dart';
@@ -100,7 +99,6 @@ final GoRouter appRouter = GoRouter(
         return SearchPage(isComparisonMode: isCompare);
       },
     ),
-    // Map /product to ProductScreen, utilizing parameter matching
     GoRoute(
       path: '/product/:barcode',
       builder: (context, state) {
@@ -139,6 +137,5 @@ final GoRouter appRouter = GoRouter(
         return ProductListPage(category: category);
       },
     ),
-
   ],
 );
