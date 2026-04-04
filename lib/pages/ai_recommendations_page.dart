@@ -11,7 +11,7 @@ class AIProductRecommendationPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<ProductProvider>(context);
-    final recommendedProducts = provider.products.where((p) => p.rating >= 4.0).toList();
+    final recommendedProducts = provider.products.take(10).toList();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -37,7 +37,7 @@ class AIProductRecommendationPage extends StatelessWidget {
                     ),
                   ),
                   const Text(
-                    'Based on high-rated products in our catalog.',
+                    'Personalized insights for our catalog.',
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
                   const SizedBox(height: 20),
@@ -156,9 +156,9 @@ class AIProductRecommendationPage extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      Text(
-                        '${product.rating} Rating',
-                        style: const TextStyle(
+                      const Text(
+                        'Verified',
+                        style: TextStyle(
                           color: Colors.blue,
                           fontSize: 10,
                           fontWeight: FontWeight.w800,

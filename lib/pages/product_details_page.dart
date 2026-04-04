@@ -287,8 +287,6 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
             children: [
               _buildSpecRow('Category', product.category),
               _buildSpecRow('Barcode', product.barcode),
-              _buildSpecRow('Price', '\$${product.price.toStringAsFixed(2)}'),
-              _buildSpecRow('Rating', '${product.rating} / 5.0'),
             ],
           ),
           const SizedBox(height: 24),

@@ -409,8 +409,6 @@ class ComparePage extends StatelessWidget {
         children: [
           _buildComparisonRow('Category', products, (p) => p.category),
           _buildComparisonRow('Barcode', products, (p) => p.barcode),
-          _buildComparisonRow('Price', products, (p) => '\$${p.price.toStringAsFixed(2)}'),
-          _buildComparisonRow('Rating', products, (p) => '${p.rating} / 5.0'),
         ],
       ),
     );

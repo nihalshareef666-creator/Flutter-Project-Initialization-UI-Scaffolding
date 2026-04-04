@@ -280,8 +280,6 @@ class _AddEditProductFormState extends State<_AddEditProductForm> {
       brand: _brandController.text.trim(),
       category: widget.categoryName, // locked to current category
       barcode: _barcodeController.text.trim(),
-      price: widget.existingProduct?.price ?? 0.0,
-      rating: widget.existingProduct?.rating ?? 0.0,
       imageUrl: _imageFile?.path,
     );
 
