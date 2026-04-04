@@ -626,7 +626,7 @@ class _HomePageState extends State<HomePage> {
         ),
         Consumer<ProductProvider>(
           builder: (context, provider, child) {
-            final recommended = provider.products.where((p) => p.rating >= 4.5).toList();
+            final recommended = provider.products.take(5).toList();
             if (recommended.isEmpty) return const SizedBox.shrink();
             
             return SizedBox(
@@ -678,9 +678,9 @@ class _HomePageState extends State<HomePage> {
                                   color: Colors.orange.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
-                                child: Text(
-                                  'Rating: ${p.rating}',
-                                  style: const TextStyle(
+                                child: const Text(
+                                  'Top Pick',
+                                  style: TextStyle(
                                     fontSize: 8,
                                     fontWeight: FontWeight.bold,
                                     color: Colors.orange,

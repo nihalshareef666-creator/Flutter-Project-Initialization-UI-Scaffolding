@@ -3,18 +3,16 @@ class Product {
   final String brand;
   final String category;
   final String barcode;
-  final double price;
-  final double rating;
   final String? imageUrl;
+  final Map<String, String>? specifications;
 
   Product({
     required this.name,
     required this.brand,
     required this.category,
     required this.barcode,
-    required this.price,
-    required this.rating,
     this.imageUrl,
+    this.specifications,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -23,9 +21,10 @@ class Product {
       brand: json['brand'] ?? 'Unknown',
       category: json['category'] ?? 'General',
       barcode: json['barcode'] ?? '',
-      price: (json['price'] ?? 0.0).toDouble(),
-      rating: (json['rating'] ?? 0.0).toDouble(),
       imageUrl: json['imageUrl'] as String?,
+      specifications: json['specifications'] != null
+          ? Map<String, String>.from(json['specifications'])
+          : null,
     );
   }
 
@@ -35,9 +34,8 @@ class Product {
       'brand': brand,
       'category': category,
       'barcode': barcode,
-      'price': price,
-      'rating': rating,
       if (imageUrl != null) 'imageUrl': imageUrl,
+      if (specifications != null) 'specifications': specifications,
     };
   }
 }
