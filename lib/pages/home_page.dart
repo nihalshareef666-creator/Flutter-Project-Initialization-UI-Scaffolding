@@ -231,21 +231,21 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     const Color themeColor = AppColors.primary;
 
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildAppBar(context, themeColor),
-          const SizedBox(height: 20),
-          _buildStatsSection(),
-          const SizedBox(height: 24),
-          _buildCategoriesSection(context),
-          const SizedBox(height: 24),
-          _buildRecentProductsSection(),
-          const SizedBox(height: 24),
-          _buildAIRecommendedSection(context),
-          const SizedBox(height: 30),
-        ],
+    return Scaffold(
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildAppBar(context, themeColor),
+            const SizedBox(height: 20),
+            _buildStatsSection(),
+            const SizedBox(height: 24),
+            _buildCategoriesSection(context),
+            const SizedBox(height: 24),
+            _buildAIRecommendedSection(context),
+            const SizedBox(height: 30),
+          ],
+        ),
       ),
     );
   }

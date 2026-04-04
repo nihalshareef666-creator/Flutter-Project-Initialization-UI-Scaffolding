@@ -23,7 +23,9 @@ class Product {
       barcode: json['barcode'] ?? '',
       imageUrl: json['imageUrl'] as String?,
       specifications: json['specifications'] != null
-          ? Map<String, String>.from(json['specifications'])
+          ? Map<String, dynamic>.from(json['specifications']).map(
+              (key, value) => MapEntry(key, value.toString()),
+            )
           : null,
     );
   }

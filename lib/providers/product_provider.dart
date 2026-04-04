@@ -106,10 +106,10 @@ class ProductProvider with ChangeNotifier {
     _setLoading(true);
     _clearError();
     try {
-      await Future.delayed(const Duration(milliseconds: 500));
+      final updatedProduct = await _apiService.updateProduct(product);
       final index = _allProducts.indexWhere((p) => p.barcode == product.barcode);
       if (index != -1) {
-        _allProducts[index] = product;
+        _allProducts[index] = updatedProduct;
         notifyListeners();
         return true;
       }
@@ -126,10 +126,13 @@ class ProductProvider with ChangeNotifier {
     _setLoading(true);
     _clearError();
     try {
-      await Future.delayed(const Duration(milliseconds: 500));
-      _allProducts.removeWhere((p) => p.barcode == barcode);
-      notifyListeners();
-      return true;
+      final success = await _apiService.deleteProduct(barcode);
+      if (success) {
+        _allProducts.removeWhere((p) => p.barcode == barcode);
+        notifyListeners();
+        return true;
+      }
+      return false;
     } catch (e) {
       _setError('Failed to delete product: ${e.toString()}');
       return false;

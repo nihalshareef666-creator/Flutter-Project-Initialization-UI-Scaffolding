@@ -2,36 +2,44 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/product_model.dart';
 
 class ApiService {
-  // Dynamically resolve base URL based on platform
+  // Dynamically resolve base URL based on platform as per the integration guide
   static String get _baseUrl {
     if (kIsWeb) {
-      return 'http://localhost:3000'; // Browser connects to localhost
+      return 'http://localhost:3000'; // Web or iOS Simulator (localhost)
     } else if (Platform.isAndroid) {
-      // Your NestJS server is now running on this computer (192.168.1.5).
-      return 'http://192.168.1.5:3000'; 
+      // Android Emulator connects via 10.0.2.2
+      return 'http://10.0.2.2:3000'; 
     } else {
-      return 'http://localhost:3000'; // Default for iOS Simulator
+      return 'http://localhost:3000'; // iOS Simulator or other
     }
   }
 
-  // Standard Headers
-  Map<String, String> get _headers => {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      };
+  // Get headers including Bearer token
+  Future<Map<String, String>> _getHeaders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('access_token');
+    
+    return {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
 
   // -------------------------------
-  // GENERIC REQUEST METHODS
+  // GENERIC REQUEST METHODS (With Auth)
   // -------------------------------
 
   Future<dynamic> _get(String endpoint) async {
     try {
+      final headers = await _getHeaders();
       final response = await http.get(
         Uri.parse('$_baseUrl$endpoint'),
-        headers: _headers,
+        headers: headers,
       );
       return _processResponse(response);
     } catch (e) {
@@ -41,14 +49,42 @@ class ApiService {
 
   Future<dynamic> _post(String endpoint, Map<String, dynamic> body) async {
     try {
+      final headers = await _getHeaders();
       final response = await http.post(
         Uri.parse('$_baseUrl$endpoint'),
-        headers: _headers,
+        headers: headers,
         body: jsonEncode(body),
       );
       return _processResponse(response);
     } catch (e) {
       throw Exception('POST Request failed: $e');
+    }
+  }
+
+  Future<dynamic> _put(String endpoint, Map<String, dynamic> body) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.put(
+        Uri.parse('$_baseUrl$endpoint'),
+        headers: headers,
+        body: jsonEncode(body),
+      );
+      return _processResponse(response);
+    } catch (e) {
+      throw Exception('PUT Request failed: $e');
+    }
+  }
+
+  Future<dynamic> _delete(String endpoint) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.delete(
+        Uri.parse('$_baseUrl$endpoint'),
+        headers: headers,
+      );
+      return _processResponse(response);
+    } catch (e) {
+      throw Exception('DELETE Request failed: $e');
     }
   }
 
@@ -104,6 +140,7 @@ class ApiService {
       final data = await _post('/products/compare', {
         'barcodes': barcodes,
       });
+      // Response expected: { "success": true, "data": [...], "recommendation": "..." }
       return data;
     } catch (e) {
       throw Exception('Comparison failed: $e');
@@ -130,6 +167,28 @@ class ApiService {
       return Product.fromJson(data['data'] ?? data);
     } catch (e) {
       throw Exception('Failed to add product: $e');
+    }
+  }
+
+  /// PUT /products/:barcode → update product
+  Future<Product> updateProduct(Product product) async {
+    try {
+      final data = await _put('/products/${product.barcode}', product.toJson());
+      return Product.fromJson(data['data'] ?? data);
+    } catch (e) {
+      throw Exception('Failed to update product: $e');
+    }
+  }
+
+  /// DELETE /products/:barcode → delete product
+  Future<bool> deleteProduct(String barcode) async {
+    try {
+      final data = await _delete('/products/$barcode');
+      // Assume backend returns { "success": true } or data
+      final result = data is Map ? data['success'] == true : data != null;
+      return result;
+    } catch (e) {
+      throw Exception('Failed to delete product: $e');
     }
   }
 }

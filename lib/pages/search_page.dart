@@ -38,34 +38,37 @@ class _SearchPageState extends State<SearchPage> {
     _performSearch(query);
   }
 
-  void _performSearch(String query) {
+  void _performSearch(String query) async {
+    if (query.isEmpty && _selectedFilter == 'All') {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+
     setState(() => _isSearching = true);
     
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (!mounted) return;
-      
+    try {
       final provider = Provider.of<ProductProvider>(context, listen: false);
-      final allProducts = provider.products;
+      final results = await provider.searchProducts(query);
       
-      setState(() {
-        _isSearching = false;
-        if (query.isEmpty && _selectedFilter == 'All') {
+      if (mounted) {
+        setState(() {
+          _isSearching = false;
+          _searchResults = _selectedFilter == 'All' 
+              ? results 
+              : results.where((p) => p.category.toLowerCase().contains(_selectedFilter.toLowerCase())).toList();
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSearching = false;
           _searchResults = [];
-        } else {
-          _searchResults = allProducts.where((p) {
-            final matchesQuery = query.isEmpty ||
-                p.name.toLowerCase().contains(query.toLowerCase()) ||
-                p.brand.toLowerCase().contains(query.toLowerCase()) ||
-                p.barcode.toLowerCase().contains(query.toLowerCase());
-                
-            final matchesFilter = _selectedFilter == 'All' || 
-                p.category.toLowerCase().contains(_selectedFilter.toLowerCase());
-                
-            return matchesQuery && matchesFilter;
-          }).toList();
-        }
-      });
-    });
+        });
+      }
+    }
   }
 
   @override
