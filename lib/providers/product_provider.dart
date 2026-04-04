@@ -102,6 +102,42 @@ class ProductProvider with ChangeNotifier {
     }
   }
 
+  Future<bool> updateProduct(Product product) async {
+    _setLoading(true);
+    _clearError();
+    try {
+      await Future.delayed(const Duration(milliseconds: 500));
+      final index = _allProducts.indexWhere((p) => p.barcode == product.barcode);
+      if (index != -1) {
+        _allProducts[index] = product;
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      _setError('Failed to update product: ${e.toString()}');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<bool> deleteProduct(String barcode) async {
+    _setLoading(true);
+    _clearError();
+    try {
+      await Future.delayed(const Duration(milliseconds: 500));
+      _allProducts.removeWhere((p) => p.barcode == barcode);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _setError('Failed to delete product: ${e.toString()}');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   // -------------------------------
   // COMPARISON LOGIC
   // -------------------------------

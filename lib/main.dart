@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:testpro26/providers/product_provider.dart';
+import 'package:testpro26/providers/auth_provider.dart';
 import 'package:testpro26/app_router.dart';
 // ─────────────────────────────────────────────────────────────
 //  App-wide design tokens
@@ -33,7 +34,10 @@ void main() {
   );
   runApp(
     MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => ProductProvider())],
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()..loadUser()),
+        ChangeNotifierProvider(create: (_) => ProductProvider()),
+      ],
       child: const MyApp(),
     ),
   );

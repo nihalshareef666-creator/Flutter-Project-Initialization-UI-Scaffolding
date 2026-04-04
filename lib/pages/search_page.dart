@@ -6,7 +6,8 @@ import 'package:testpro26/providers/product_provider.dart';
 import 'package:testpro26/models/product_model.dart';
 
 class SearchPage extends StatefulWidget {
-  const SearchPage({super.key});
+  final bool isComparisonMode;
+  const SearchPage({super.key, this.isComparisonMode = false});
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -193,7 +194,12 @@ class _SearchPageState extends State<SearchPage> {
   Widget _buildProductCard(Product p, BuildContext context) {
     return GestureDetector(
       onTap: () {
-        context.push('/product/${p.barcode}');
+        if (widget.isComparisonMode) {
+          Provider.of<ProductProvider>(context, listen: false).addToComparison(p);
+          context.pop();
+        } else {
+          context.push('/product/${p.barcode}');
+        }
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),

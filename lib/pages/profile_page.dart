@@ -77,15 +77,7 @@ class _ProfilePageState extends State<ProfilePage> {
               onTap: _navigateToEditProfile,
             ),
             const SizedBox(height: 16),
-            _buildProfileButton(
-              context,
-              icon: Icons.inventory_2_outlined,
-              title: 'Inventory Management',
-              onTap: () {
-                context.push('/my-products');
-              },
-            ),
-            const SizedBox(height: 16),
+
             _buildProfileButton(
               context,
               icon: Icons.lock,

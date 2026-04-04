@@ -61,6 +61,14 @@ class ComparePage extends StatelessWidget {
           ],
         ),
       ),
+      floatingActionButton: selectedProducts.isNotEmpty && selectedProducts.length < 4
+          ? FloatingActionButton.extended(
+              onPressed: () => _showAddComparisonBottomSheet(context),
+              backgroundColor: AppColors.primary,
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text('Add Comparison', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            )
+          : null,
     );
   }
 
@@ -100,11 +108,12 @@ class ComparePage extends StatelessWidget {
               width: 200,
               height: 50,
               child: ElevatedButton.icon(
-                onPressed: () => context.go('/dashboard'),
+                onPressed: () => _showAddComparisonBottomSheet(context),
                 icon: const Icon(Icons.add),
-                label: const Text('Add Products'),
+                label: const Text('Add Comparison'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
@@ -112,6 +121,68 @@ class ComparePage extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _showAddComparisonBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Add Product to Comparison',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.search, color: AppColors.primary),
+                ),
+                title: const Text('Search Product', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Find products by name or brand'),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push('/search?compare=true');
+                },
+              ),
+              const Divider(height: 24),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.qr_code_scanner, color: Colors.orange),
+                ),
+                title: const Text('QR Scan', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Scan product barcode'),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push('/scanner?compare=true');
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
     );
   }
 

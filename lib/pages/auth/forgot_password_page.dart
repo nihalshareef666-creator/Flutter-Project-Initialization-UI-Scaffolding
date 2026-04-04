@@ -1,28 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:testpro26/main.dart';
-import 'package:provider/provider.dart';
-import 'package:testpro26/providers/auth_provider.dart';
 import 'package:testpro26/services/auth_service.dart';
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+class ForgotPasswordPage extends StatefulWidget {
+  const ForgotPasswordPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<ForgotPasswordPage> createState() => _ForgotPasswordPageState();
 }
 
-class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixin {
+class _ForgotPasswordPageState extends State<ForgotPasswordPage> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  
   final FocusNode _emailFocusNode = FocusNode();
-  final FocusNode _passwordFocusNode = FocusNode();
   
   final AuthService _authService = AuthService();
 
-  bool _obscurePassword = true;
   bool _isLoading = false;
   
   // Animation for logo
@@ -51,23 +45,19 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
     _animationController.forward();
 
-    // Rebuild on focus changes to render shadows & color highlights
     _emailFocusNode.addListener(() { setState(() {}); });
-    _passwordFocusNode.addListener(() { setState(() {}); });
   }
 
-  void _login() async {
+  void _resetPassword() async {
     if (!_formKey.currentState!.validate()) {
        return;
     }
     
     setState(() => _isLoading = true);
     
-    // Convert email to lowercase for consistent handling
     final email = _emailController.text.trim().toLowerCase();
-    final password = _passwordController.text;
     
-    final success = await _authService.login(email, password);
+    final success = await _authService.forgotPassword(email);
     
     if (mounted) {
       setState(() => _isLoading = false);
@@ -75,7 +65,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       if (!success) {
          ScaffoldMessenger.of(context).showSnackBar(
            const SnackBar(
-             content: Text('Invalid email or password'),
+             content: Text('Failed to send reset link. Please try again.'),
              backgroundColor: AppColors.error,
              behavior: SnackBarBehavior.floating,
            ),
@@ -83,23 +73,27 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
          return;
       }
       
-      await Provider.of<AuthProvider>(context, listen: false).login(email);
-      // Navigate to Dashboard using pushReplacement so user can't navigate back to login
-      context.pushReplacement('/dashboard');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Reset link sent to your email'),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      
+      // Optionally pop back to login
+      context.pop();
     }
   }
 
   @override
   void dispose() {
     _emailController.dispose();
-    _passwordController.dispose();
     _emailFocusNode.dispose();
-    _passwordFocusNode.dispose();
     _animationController.dispose();
     super.dispose();
   }
 
-  // Regex for basic email validation
   bool _isValidEmail(String email) {
     return RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+")
       .hasMatch(email);
@@ -122,10 +116,18 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: () => context.pop(),
+        ),
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
             child: Form(
               key: _formKey,
               child: Column(
@@ -146,14 +148,14 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
-                              Icons.storefront,
+                              Icons.lock_reset,
                               size: 72,
                               color: AppColors.primary,
                             ),
                           ),
                           const SizedBox(height: 24),
                           const Text(
-                            'TechPlumb Solutions',
+                            'Reset Password',
                             style: TextStyle(
                               fontSize: 26,
                               fontWeight: FontWeight.w800,
@@ -164,7 +166,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                           ),
                           const SizedBox(height: 8),
                           const Text(
-                            'Sign in to continue to your dashboard',
+                            'Enter your email to receive a password reset link',
                             style: TextStyle(
                               fontSize: 15,
                               color: AppColors.textSecondary,
@@ -177,16 +179,16 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                   ),
                   const SizedBox(height: 48),
 
-                  // Middle Section (Inputs)
+                  // Input
                   _buildTextFieldContainer(
                     isFocused: _emailFocusNode.hasFocus,
                     child: TextFormField(
                       controller: _emailController,
                       focusNode: _emailFocusNode,
-                      autofocus: true,
                       keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      onFieldSubmitted: (_) => FocusScope.of(context).requestFocus(_passwordFocusNode),
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) => _resetPassword(),
+                      autofocus: true,
                       decoration: InputDecoration(
                         hintText: 'Enter your email',
                         prefixIcon: Icon(Icons.email_outlined, 
@@ -221,89 +223,14 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                       },
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 36),
 
-                  _buildTextFieldContainer(
-                    isFocused: _passwordFocusNode.hasFocus,
-                    child: TextFormField(
-                      controller: _passwordController,
-                      focusNode: _passwordFocusNode,
-                      obscureText: _obscurePassword,
-                      textInputAction: TextInputAction.done,
-                      onFieldSubmitted: (_) => _login(),
-                      decoration: InputDecoration(
-                        hintText: 'Enter your password',
-                        prefixIcon: Icon(Icons.lock_outline,
-                          color: _passwordFocusNode.hasFocus ? AppColors.primary : AppColors.textHint,
-                        ),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                            color: AppColors.primary,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _obscurePassword = !_obscurePassword;
-                            });
-                          },
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                        ),
-                        errorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
-                        ),
-                        focusedErrorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.error, width: 2),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Password is required';
-                        }
-                        if (value.length < 6) {
-                          return 'Password must be at least 6 characters';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Bottom Section
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => context.push('/forgot-password'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      child: const Text(
-                        'Forgot Password?',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-
-                  // Animated Gradient Login Button
+                  // Animated Gradient Button
                   GestureDetector(
                     onTapDown: _isLoading ? null : (_) => setState(() => _buttonScale = 0.96),
                     onTapUp: _isLoading ? null : (_) => setState(() => _buttonScale = 1.0),
                     onTapCancel: _isLoading ? null : () => setState(() => _buttonScale = 1.0),
-                    onTap: _isLoading ? null : _login,
+                    onTap: _isLoading ? null : _resetPassword,
                     child: AnimatedScale(
                       scale: _buttonScale,
                       duration: const Duration(milliseconds: 100),
@@ -338,7 +265,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                                   ),
                                 )
                               : const Text(
-                                  'Login',
+                                  'Send Reset Link',
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 18,
@@ -349,47 +276,6 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Temporary Mock bypass Button
-                  TextButton.icon(
-                    onPressed: () => context.pushReplacement('/dashboard'),
-                    icon: const Icon(Icons.arrow_forward),
-                    label: const Text('Skip Login (Mock purpose only)'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text(
-                        "Don't have an account? ",
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 15,
-                        ),
-                      ),
-                      InkWell(
-                        onTap: () => context.push('/signup'),
-                        borderRadius: BorderRadius.circular(4),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
-                          child: Text(
-                            'Sign Up',
-                            style: TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                              decoration: TextDecoration.underline,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
